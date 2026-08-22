@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>印加文明解鎖：祕魯見習互動足跡地圖</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet.js CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- 導入溫暖的人文安地斯配色系統 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        andean: {
+                            clay: '#C85A32',     // 陶土橘
+                            gold: '#E5A93C',     // 印加金
+                            dark: '#2B2625',     // 深炭黑
+                            sand: '#F7F4F0',     // 淺沙色
+                            forest: '#2D5A27',   // 高原綠
+                            lightgreen: '#8FB996'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        #map { height: 100%; width: 100%; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .custom-popup .leaflet-popup-content-wrapper {
+            background: #2B2625;
+            color: #F7F4F0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .custom-popup .leaflet-popup-tip { background: #2B2625; }
+        /* 隱藏滾動條但保持滾動功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-andean-sand text-andean-dark h-screen flex flex-col overflow-hidden">
+
+    <!-- 頂部導航列 -->
+    <header class="bg-andean-dark text-andean-sand px-6 py-4 flex justify-between items-center border-b-4 border-andean-gold shadow-md">
+        <div class="flex items-center space-x-3">
+            <span class="text-2xl">🏔️</span>
+            <div>
+                <h1 class="text-lg font-bold tracking-wider text-andean-gold">印加文明解鎖</h1>
+                <p class="text-xs text-gray-400">趙祥臻的祕魯見習與社會實踐互動足跡</p>
+            </div>
+        </div>
+        <div class="flex space-x-4 text-sm">
+            <a href="https://github.com" target="_blank" class="hover:text-andean-gold transition"><i class="fab fa-github mr-1"></i>開源工具包</a>
+            <span class="text-andean-clay">|</span>
+            <span class="text-andean-gold font-semibold">以人為本的設計實踐</span>
+        </div>
+    </header>
+
+    <!-- 主體內容：地圖與故事雙欄佈局 -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- 左欄：互動地圖空間 -->
+        <div class="w-full md:w-3/5 h-[45vh] md:h-full p-4 relative z-10">
+            <div id="map"></div>
+        </div>
+
+        <!-- 右欄：故事與互動操作面板 -->
+        <div class="w-full md:w-2/5 h-[55vh] md:h-full bg-white flex flex-col shadow-2xl border-l border-gray-200 z-20">
+            <!-- 機構快速切換選單 -->
+            <div class="bg-gray-100 p-3 overflow-x-auto whitespace-nowrap border-b border-gray-200 flex space-x-2 no-scrollbar">
+                <button onclick="switchNode('lima')" id="btn-lima" class="nav-btn px-3 py-1.5 rounded-full text-xs font-semibold bg-andean-clay text-white transition">1. 利馬首站</button>
+                <button onclick="switchNode('misminay')" id="btn-misminay" class="nav-btn px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-200 text-andean-dark hover:bg-gray-300 transition">2. 高原祈福</button>
+                <button onclick="switchNode('cbc')" id="btn-cbc" class="nav-btn px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-200 text-andean-dark hover:bg-gray-300 transition">3. CBC 智庫</button>
+                <button onclick="switchNode('qosqo')" id="btn-qosqo" class="nav-btn px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-200 text-andean-dark hover:bg-gray-300 transition">4. Qosqo Maki</button>
+                <button onclick="switchNode('chirapaq')" id="btn-chirapaq" class="nav-btn px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-200 text-andean-dark hover:bg-gray-300 transition">5. CHIRAPAQ</button>
+                <button onclick="switchNode('taiwan')" id="btn-taiwan" class="nav-btn px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-200 text-andean-dark hover:bg-gray-300 transition">🇹🇼 回台落地</button>
+            </div>
+
+            <!-- 動態故事內容區 -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6" id="story-panel">
+                <!-- 預設載入 Lima 首站 -->
+                <div id="node-content"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 初始化 Leaflet 地圖，中心點設在秘魯庫斯科山區
+        const map = L.map('map', {
+            center: [-13.525, -71.972],
+            zoom: 8,
+            zoomControl: true
+        });
+
+        // 使用 CartoDB 具有人文質感的地圖底圖
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        // 各景點地理座標數據
+        const locations = {
+            lima: { coords: [-12.0464, -77.0428], zoom: 11, title: "祕魯首都：利馬" },
+            misminay: { coords: [-13.3400, -72.1300], zoom: 13, title: "Misminay 高原社區" },
+            cbc: { coords: [-13.5200, -71.9790], zoom: 14, title: "CBC 安地斯區域研究中心" },
+            qosqo: { coords: [-13.5185, -71.9755], zoom: 15, title: "Asociación Qosqo Maki" },
+            chirapaq: { coords: [-12.0720, -77.0500], zoom: 13, title: "CHIRAPAQ 祕魯原住民文化中心" },
+            taiwan: { coords: [23.597, 121.018], zoom: 7, title: "台灣落地實踐" }
+        };
+
+        // 在地圖上繪製精美 Marker
+        const markers = {};
+        Object.keys(locations).forEach(key => {
+            const loc = locations[key];
+            const marker = L.marker(loc.coords).addTo(map);
+            marker.bindPopup(`<div class="font-bold text-andean-gold">${loc.title}</div>`, { className: 'custom-popup' });
+            markers[key] = marker;
+            
+            // 點擊地圖標記同步切換右側面板
+            marker.on('click', () => {
+                switchNode(key);
+            });
+        });
+
+        // 核心故事節點數據
+        const nodeData = {
+            lima: {
+                title: "踏上古城：解鎖旅程的起點",
+                subtitle: "LIMA ─ 跨越半個地球的震撼",
+                bg: "andean-dark",
+                html: `
+                    <div class="space-y-4">
+                        <img src="https://images.unsplash.com/photo-1580618672591-eb180b1a973f?auto=format&fit=crop&w=800&q=80" class="w-full h-48 object-cover rounded-xl shadow-inner" alt="利馬風景">
+                        <p class="text-gray-600 leading-relaxed text-sm">
+                            飛機緩緩降落在這座太平洋畔的乾燥古城。這裡是我解鎖安地斯文明的起點。我帶著多年在宜蘭泰雅部落、竹東地方創生的服務設計養分來到這裡，期望在「常民生存挣扎」與「公部門治理失能」的縫隙中，尋找社會陪伴系統的全新解答。
+                        </p>
+                        <div class="bg-andean-sand p-4 rounded-xl border-l-4 border-andean-clay">
+                            <h4 class="font-bold text-andean-clay text-sm"><i class="fas fa-map-marker-alt mr-1"></i> 降落在庫斯科古都</h4>
+                            <p class="text-xs text-gray-500 mt-1">海拔 3,400 公尺的高原古城，稀薄的空氣中充滿了歷史沉澱的靈性，也正式開啟了我的去殖民思維挑戰之旅。</p>
+                        </div>
+                    </div>
+                `
+            },
+            misminay: {
+                title: "高原祈福與設計者的消化空間",
+                subtitle: "MISMINAY ─ 面對文化隔閡的設計謙卑",
+                html: `
+                    <div class="space-y-4">
+                        <p class="text-gray-600 leading-relaxed text-sm">
+                            在寒冷稀薄的高原上，當看著居民神情無比莊嚴地向山神（Apu）敬獻玉米啤酒，深信<b>「大地母親（Pachamama）總是口渴的，需要水分來復水滋養」</b>時，那份人與土地的和諧共生深深震撼了我。
+                        </p>
+                        <p class="text-gray-600 leading-relaxed text-sm">
+                            但隨後高度觀光套版化、單向與居民合影的「接觸點限制」也引發了我的反思：在跨語言的溝通隔閡下，我們必須先學會<b>「停下、傾聽與消化」</b>，對未知的文化保持絕對的敬意與謙卑。
+                        </p>
+                        
+                        <!-- 沉浸式互動：傾倒 Chicha 體驗 -->
+                        <div class="bg-amber-50 p-4 rounded-xl border border-andean-gold shadow-sm text-center">
+                            <h4 class="font-bold text-andean-clay text-sm mb-2"><i class="fas fa-wine-glass-alt mr-1 font-semibold"></i> 安地斯傳統祈福互動體驗</h4>
+                            <p class="text-xs text-gray-500 mb-3">滑鼠點擊下方陶杯，向山神與大地母親敬獻一杯玉米啤酒（Chicha）</p>
+                            
+                            <div class="flex justify-center items-center space-x-6 py-2">
+                                <button onclick="pourChicha()" id="chicha-cup" class="text-4xl transition transform hover:scale-110 active:rotate-45 duration-500 filter drop-shadow">🏺</button>
+                                <span class="text-3xl" id="earth-emoji">🌱</span>
+                            </div>
+                            <p id="chicha-result" class="text-xs font-bold text-andean-forest mt-2 opacity-0 transition-opacity duration-500">🌾 大地母親已獲得滋養，山神賜予祝福：Añay（謝謝）！</p>
+                        </div>
+                    </div>
+                `
+            },
+            cbc: {
+                title: "在地知識與環境監測的融合",
+                subtitle: "CBC ─ 科技作為多方對話的「溝通橋梁」",
+                html: `
+                    <div class="space-y-4">
+                        <p class="text-gray-600 leading-relaxed text-sm">
+                            安地斯區域研究中心（CBC）的「Ojo al Agua（水資源與生命觀測）」平台讓我看到：一個有生命的資訊系統，核心不是底層冰冷的演算法，而是它如何成功整合高原兒童、科學家與地方社區，攜手守護 Puray 潟湖。
+                        </p>
+                        
+                        <!-- 互動：水中昆蟲觀測計算器 -->
+                        <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 shadow-sm">
+                            <h4 class="font-bold text-blue-800 text-sm mb-2"><i class="fas fa-microscope mr-1"></i> Puray 潟湖水質觀測計算器</h4>
+                            <p class="text-xs text-gray-500 mb-3">模仿 CBC 高原學童，在石頭下辨識「水中大型無脊椎動物」的數量來計算水質：</p>
+                            
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div class="flex items-center justify-between bg-white p-2 rounded border border-blue-100">
+                                    <span>🦟 石蠅幼蟲 (敏感型)</span>
+                                    <div class="flex items-center space-x-2">
+                                        <button onclick="changeBug('stonefly', -1)" class="px-1.5 py-0.5 bg-gray-200 rounded font-bold">-</button>
+                                        <span id="bug-stonefly" class="font-semibold text-blue-700">0</span>
+                                        <button onclick="changeBug('stonefly', 1)" class="px-1.5 py-0.5 bg-gray-200 rounded font-bold">+</button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between bg-white p-2 rounded border border-blue-100">
+                                    <span>🐌 螺類 (耐受型)</span>
+                                    <div class="flex items-center space-x-2">
+                                        <button onclick="changeBug('snail', -1)" class="px-1.5 py-0.5 bg-gray-200 rounded font-bold">-</button>
+                                        <span id="bug-snail" class="font-semibold text-blue-700">0</span>
+                                        <button onclick="changeBug('snail', 1)" class="px-1.5 py-0.5 bg-gray-200 rounded font-bold">+</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3 pt-3 border-t border-blue-200 flex justify-between items-center text-xs">
+                                <span class="font-bold text-gray-600">水質健康度：</span>
+                                <span id="water-quality-score" class="font-bold text-gray-400">尚未觀測</span>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            qosqo: {
+                title: "街頭青年的自立陪伴與發聲",
+                subtitle: "QOSQO MAKI ─ 改變弱勢孩子對未來的想像",
+                html: `
+                    <div class="space-y-4">
+                        <p class="text-gray-600 leading-relaxed text-sm">
+                            在 Qosqo Maki 的三日蹲點，目睹了這裡如何透過無條件的宿舍庇護、麵包與木工工作坊，讓面臨家庭失能的街頭孩子在「共同管理」制度下奪回自尊與生命主體性。
+                        </p>
+                        
+                        <!-- 互動：Spotify 播客播放模擬 -->
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm">
+                            <h4 class="font-bold text-andean-dark text-sm mb-1"><i class="fas fa-podcast text-red-500 mr-1"></i> 街頭青年的數位發聲收音機</h4>
+                            <p class="text-xs text-gray-500 mb-3">點擊播放孩子們每兩個月自主規劃錄製的 Spotify 播客專輯：</p>
+                            
+                            <div class="bg-andean-dark text-white p-3 rounded-lg flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <button onclick="togglePodcast()" id="play-btn" class="w-8 h-8 rounded-full bg-andean-gold text-andean-dark flex items-center justify-center focus:outline-none transition transform hover:scale-105">
+                                        <i class="fas fa-play text-xs pl-0.5" id="play-icon"></i>
+                                    </button>
+                                    <div>
+                                        <p class="text-xs font-semibold" id="podcast-title">Ep.12 庫斯科太陽祭與流浪動物</p>
+                                        <p class="text-[10px] text-gray-400">Asociación Qosqo Maki</p>
+                                    </div>
+                                </div>
+                                <!-- 動態波形圖 -->
+                                <div class="flex items-end space-x-0.5 h-6 opacity-40" id="wave-container">
+                                    <span class="w-0.5 bg-andean-gold h-1 rounded-full wave-bar"></span>
+                                    <span class="w-0.5 bg-andean-gold h-3 rounded-full wave-bar"></span>
+                                    <span class="w-0.5 bg-andean-gold h-2 rounded-full wave-bar"></span>
+                                    <span class="w-0.5 bg-andean-gold h-4 rounded-full wave-bar"></span>
+                                    <span class="w-0.5 bg-andean-gold h-1 rounded-full wave-bar"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-andean-sand p-3.5 rounded-xl border-l-4 border-andean-gold text-xs leading-relaxed text-gray-600">
+                            <b>「當我願意放下技術的執念，走入孩子之間分享知識時，我看見他們眼裡閃爍著光芒。真正的解答，從來不是冷冰冰的代碼，而是人與人平等的陪伴。」</b>
+                        </div>
+                    </div>
+                `
+            },
+            chirapaq: {
+                title: "食農主權與祖傳知識的科學轉譯",
+                subtitle: "CHIRAPAQ ─ 原民青年重建文化認同",
+                html: `
+                    <div class="space-y-4">
+                        <p class="text-gray-600 leading-relaxed text-sm">
+                            在利馬拜訪 CHIRAPAQ 原民文化中心，深深被克丘亞族青年生物學家 Mark 的畢業論文打動。他使用現代分子生物學，對 4 種安地斯祖傳藜麥進行蛋白質結構分析，用科學的語言重新評估祖傳作物的價值，親手拿回糧食自主權。
+                        </p>
+                        
+                        <!-- 互動：藜麥科學分子光譜儀 -->
+                        <div class="bg-orange-50 p-4 rounded-xl border border-orange-200 shadow-sm text-center">
+                            <h4 class="font-bold text-orange-800 text-sm mb-2"><i class="fas fa-dna mr-1"></i> 安地斯藜麥分子光譜儀</h4>
+                            <p class="text-xs text-gray-500 mb-3">點擊不同顏色的藜麥，查看現代分子生物學分析之蛋白質重新評估數據：</p>
+                            
+                            <div class="flex justify-center space-x-2.5 mb-3">
+                                <button onclick="showQuinoa('red', '86%', '豐富花青素與抗氧化活性')" class="w-7 h-7 rounded-full bg-red-600 border-2 border-white shadow hover:scale-105 transition"></button>
+                                <button onclick="showQuinoa('black', '92%', '高膳食纖維與複合不飽和脂肪酸')" class="w-7 h-7 rounded-full bg-gray-900 border-2 border-white shadow hover:scale-105 transition"></button>
+                                <button onclick="showQuinoa('pink', '89%', '人體必需 8 種氨基酸分子結構')" class="w-7 h-7 rounded-full bg-pink-400 border-2 border-white shadow hover:scale-105 transition"></button>
+                                <button onclick="showQuinoa('yellow', '94%', '超高密度植物性蛋白質複合體')" class="w-7 h-7 rounded-full bg-yellow-500 border-2 border-white shadow hover:scale-105 transition"></button>
+                            </div>
+                            
+                            <div id="quinoa-result" class="bg-white p-2.5 rounded border border-orange-100 text-xs text-left min-h-[50px] flex flex-col justify-center">
+                                <p class="text-center text-gray-400">（請點選上方藜麥按鈕啟動光譜分析）</p>
+                            </div>
+                        </div>
+                    </div>
+                `
+            },
+            taiwan: {
+                title: "世界的解答：將養分灌溉回台灣的土地",
+                subtitle: "TAIWAN ─ 行動者的歸國實踐大綱",
+                html: `
+                    <div class="space-y-4">
+                        <p class="text-gray-600 leading-relaxed text-sm">
+                            世界的解答，終將寫回台灣。帶著安地斯高原學到的謙卑與去殖民陪伴智慧，我著手規劃了兩大歸國社會實踐行動：
+                        </p>
+                        
+                        <!-- 落地教案與開源工具包 -->
+                        <div class="space-y-2.5">
+                            <div class="flex items-start space-x-3 bg-white p-3 rounded-lg border border-gray-200">
+                                <span class="text-xl">🎯</span>
+                                <div>
+                                    <h4 class="font-bold text-xs text-andean-clay">偏鄉「一日資訊與 AI 公民素養工作坊」</h4>
+                                    <p class="text-[11px] text-gray-500 mt-0.5">教導台灣偏鄉學童，在 AI 假訊息時代，如何用數位工具為自己的家鄉故事主動發聲、建立批判性思考。</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start space-x-3 bg-white p-3 rounded-lg border border-gray-200">
+                                <span class="text-xl">💻</span>
+                                <div>
+                                    <h4 class="font-bold text-xs text-andean-forest">GitHub「文化與弱勢賦權開源工具包」</h4>
+                                    <p class="text-[11px] text-gray-500 mt-0.5">提供低技術門檻的互動式文化地圖網頁模板，以及食農主權推動手冊（Playbook），供台灣地方創生 NPO 免費部署。</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center pt-2">
+                            <a href="https://github.com" target="_blank" class="inline-block px-5 py-2.5 bg-andean-dark text-andean-gold text-xs font-bold rounded-full hover:bg-andean-clay hover:text-white transition shadow-md">
+                                <i class="fab fa-github mr-1"></i> 獲取開源 GitHub 工具包
+                            </a>
+                        </div>
+                    </div>
+                `
+            }
+        };
+
+        // 切換景點與面板內容的控制邏輯
+        function switchNode(key) {
+            const loc = locations[key];
+            const data = nodeData[key];
+
+            // 地圖平滑飛行至目標點
+            map.flyTo(loc.coords, loc.zoom, { animate: true, duration: 1.5 });
+            markers[key].openPopup();
+
+            // 更新選單按鈕樣式
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.className = "nav-btn px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-200 text-andean-dark hover:bg-gray-300 transition";
+            });
+            document.getElementById(`btn-${key}`).className = "nav-btn px-3 py-1.5 rounded-full text-xs font-semibold bg-andean-clay text-white transition animate-pulse";
+
+            // 動態更新右側面板文字與互動
+            document.getElementById('story-panel').innerHTML = `
+                <div class="space-y-1">
+                    <span class="text-xs font-bold text-andean-clay tracking-widest uppercase">${data.subtitle}</span>
+                    <h2 class="text-xl font-bold text-andean-dark">${data.title}</h2>
+                </div>
+                <div class="border-b border-gray-100 pb-2"></div>
+                ${data.html}
+            `;
+        }
+
+        // ==================== 互動元件 JS 函數 ====================
+
+        // 1. Misminay 傾倒啤酒互動
+        function pourChicha() {
+            const cup = document.getElementById('chicha-cup');
+            const earth = document.getElementById('earth-emoji');
+            const result = document.getElementById('chicha-result');
+            
+            // 觸發陶杯傾斜動畫
+            cup.style.transform = 'rotate(45deg) scale(1.1)';
+            earth.innerHTML = '🌾';
+            
+            setTimeout(() => {
+                cup.style.transform = 'rotate(0deg)';
+                result.style.opacity = '1';
+            }, 800);
+        }
+
+        // 2. CBC 水質觀測計算器
+        let bugs = { stonefly: 0, snail: 0 };
+        function changeBug(type, change) {
+            bugs[type] = Math.max(0, bugs[type] + change);
+            document.getElementById(`bug-${type}`).innerText = bugs[type];
+            calculateWaterQuality();
+        }
+        function calculateWaterQuality() {
+            const scoreElement = document.getElementById('water-quality-score');
+            const total = bugs.stonefly * 10 - bugs.snail * 3;
+            
+            if (bugs.stonefly === 0 && bugs.snail === 0) {
+                scoreElement.innerHTML = '尚未觀測';
+                scoreElement.className = 'font-bold text-gray-400';
+            } else if (total > 15) {
+                scoreElement.innerHTML = '✨ 優秀 (高地潟湖原始健康水質)';
+                scoreElement.className = 'font-bold text-andean-forest';
+            } else if (total >= 5) {
+                scoreElement.innerHTML = '🌱 良好 (水生昆蟲生態平衡)';
+                scoreElement.className = 'font-bold text-blue-600';
+            } else {
+                scoreElement.innerHTML = '⚠️ 輕度受損 (需進一步環境監測)';
+                scoreElement.className = 'font-bold text-andean-clay';
+            }
+        }
+
+        // 3. Qosqo Maki Podcast 播放器模擬
+        let isPlaying = false;
+        function togglePodcast() {
+            const icon = document.getElementById('play-icon');
+            const btn = document.getElementById('play-btn');
+            const bars = document.querySelectorAll('.wave-bar');
+            
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                icon.className = "fas fa-pause text-xs";
+                btn.className = "w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center focus:outline-none transition";
+                bars.forEach((bar, idx) => {
+                    bar.style.animation = `bounce 0.8s ease-in-out infinite alternate`;
+                    bar.style.animationDelay = `${idx * 0.15}s`;
+                });
+            } else {
+                icon.className = "fas fa-play text-xs pl-0.5";
+                btn.className = "w-8 h-8 rounded-full bg-andean-gold text-andean-dark flex items-center justify-center focus:outline-none transition";
+                bars.forEach(bar => bar.style.animation = 'none');
+            }
+        }
+
+        // 4. CHIRAPAQ 藜麥光譜儀分析
+        function showQuinoa(color, protein, desc) {
+            const resultBox = document.getElementById('quinoa-result');
+            let colorName = { red: '紅色藜麥', black: '黑色藜麥', pink: '粉紅藜麥', yellow: '黃色藜麥' };
+            resultBox.innerHTML = `
+                <p class="font-bold text-andean-dark text-xs"><span class="inline-block w-2.5 h-2.5 rounded-full mr-1" style="background-color: ${color === 'pink' ? '#f472b6' : color}"></span> ${colorName[color]} 分子結構分析：</p>
+                <div class="flex items-center space-x-2 mt-1.5">
+                    <span class="bg-orange-100 text-orange-800 text-[10px] px-1.5 py-0.5 rounded font-semibold">蛋白質密度：${protein}</span>
+                    <span class="text-gray-600 text-[11px]">${desc}</span>
+                </div>
+            `;
+        }
+
+        // 預設載入利馬首站
+        window.onload = () => {
+            switchNode('lima');
+        };
+    </script>
+
+    <!-- 微型動畫 CSS -->
+    <style>
+        @keyframes bounce {
+            0% { height: 4px; }
+            100% { height: 24px; }
+        }
+    </style>
+</body>
+</html>
