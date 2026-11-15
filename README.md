@@ -20,6 +20,14 @@ npm run build
 npm run preview
 ```
 
+## 部署到 GitHub Pages
+
+此專案已設定 GitHub Actions：推送至 `master` 後會自動建置並部署到 GitHub Pages。
+
+第一次部署前，請在 GitHub 專案頁面開啟 **Settings → Pages**，將 **Build and deployment → Source** 設為 **GitHub Actions**。部署完成後，網站網址為：
+
+<https://shellychaoo.github.io/peru-youth/>
+
 ## 專案結構
 
 ```text
