@@ -23,6 +23,9 @@ import qosqo2 from '../assets/images/qosqo2.jpeg';
 import qosqo3 from '../assets/images/qosqo3.jpeg';
 import qosqo4 from '../assets/images/qosqo4.jpeg';
 import qosqo5 from '../assets/images/qosqo5.jpeg';
+import aibridge1 from '../assets/images/aibridge1.jpg';
+import aibridge2 from '../assets/images/aibridge2.jpeg';
+
 
 export const locations = {
   lima: { coords: [-12.0464, -77.0428], zoom: 11, title: '祕魯首都：利馬' },
@@ -180,10 +183,14 @@ export const journeyNodes = [
     paragraphs: [
       '放下一開始的執念，我著手規劃了兩個歸國社會實踐行動：',
     ],
+    gallery: [
+      { src: aibridge1, alt: 'aibridge' },
+      { src: aibridge2, alt: 'aibridge' }
+    ],
     projects: [
       {
         icon: '🎯',
-        title: '一日資訊與 AI 公民素養工作坊 (準備中 預計 2026/10/16)',
+        title: '一日資訊與 AI 公民素養工作坊 (2026/10/16)',
         text: '教導台灣學童，在 AI 假訊息時代，如何用建立批判性思考。',
         tone: 'clay',
       },
